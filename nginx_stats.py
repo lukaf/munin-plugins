@@ -1,4 +1,3 @@
-#!/usr/local/bin/python
 import sys, re, urllib2
 
 nginx_url = 'http://examle.com/nginx-status'
