@@ -1,3 +1,8 @@
 Munin plugins (mostly) based on wusu (https://github.com/lukaf/wusu).
 
 Currently all plugins use FreeBSD class. Change appropriately.
+
+... except for jboss7_. Available options:
+_ds     - DataSources
+_web    - connectors
+_mem    - memory
