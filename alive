@@ -1,0 +1,41 @@
+#!/bin/sh
+
+#
+# HOWTO:
+# Add ip, host pairs to /etc/hosts (on munin server).
+# Host names should respect some rules: http://munin-monitoring.org/wiki/notes_on_datasource_names
+# Add hostnames to plugin-conf.d/alive:
+# [alive]
+#   env.hosts host1 host2 host3 host4
+#   env.timeout 5
+#
+
+: ${timeout:=5}
+: ${hosts:=127.0.0.1}
+: ${ping_cmd:="ping -c 1 -W 2 -q"}
+
+configure() {
+    echo "graph_title Host availability"
+    echo "graph_args --base 1000 -l 0"
+    echo "graph_category network"
+    for host in ${hosts}; do
+        echo "${host}.label ${host}"
+        echo "${host}.critical 1"
+    done
+}
+
+get_data() {
+    for host in ${hosts}; do
+        eval $ping_cmd $host 2> /dev/null 1>&2
+        echo "${host}.value $?"
+    done
+}
+
+case "$1" in
+    'config')
+        configure
+        ;;
+    *)
+        get_data
+        ;;
+esac
