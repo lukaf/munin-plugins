@@ -7,10 +7,11 @@ import json
 # User configurable stuff
 # Change the second value of get method or define environment variables:
 # [jboss_*]
-#   env jboss_username a
-#   env jboss_password b
-#   env jboss_realm ManagementRealm
-#   env jboss_manager "http://127.0.0.1:9990/management"
+#   env.jboss_username a
+#   env.jboss_password b
+#   env.jboss_realm ManagementRealm
+#   env.jboss_manager "http://127.0.0.1:9990/management"
+#   env.datasource xa-data-source
 #
 
 # Auth stuff
@@ -20,6 +21,9 @@ realm = os.environ.get('jboss_realm', 'ManagementRealm')
 
 # Manager location
 manager = os.environ.get('jboss_manager', 'http://127.0.0.1:9990/management')
+
+# Datasource
+datasource = os.environ.get('datasource', 'xa-data-source')
 
 # JBoss data types -> Python data types
 null = undefined = None
@@ -92,7 +96,7 @@ def configure(op_type):
                 print "%s.min 0" % (stat)
                 print "%s.type DERIVE" % (stat)
             print
-            for ds in data['xa-data-source']:
+            for ds in data[datasource]:
                 print "multigraph jboss_ds.%s" % (string_fix(ds))
                 print "graph_title %s" % string_fix(ds)
                 print "graph_args --base 1000 -l 0"
@@ -168,13 +172,13 @@ def get_data(op_type):
         print "multigraph jboss_ds"
         if data:
             for stat in ds_stats:
-                print "%s.value %s" % (stat, sum([int(data['xa-data-source'][ds]['statistics']['pool'][stat]) for ds in data['xa-data-source']]))
+                print "%s.value %s" % (stat, sum([int(data[datasource][ds]['statistics']['pool'][stat]) for ds in data[datasource]]))
             print
 
-            for ds in data['xa-data-source']:
+            for ds in data[datasource]:
                 print "multigraph jboss_ds.%s" % string_fix(ds)
                 for stat in ds_stats:
-                    print "%s.value %s" % (stat, data['xa-data-source'][ds]['statistics']['pool'][stat])
+                    print "%s.value %s" % (stat, data[datasource][ds]['statistics']['pool'][stat])
                 print
         else:
             failed_fetch()
