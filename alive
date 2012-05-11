@@ -11,8 +11,8 @@
 #
 
 : ${timeout:=5}
-: ${hosts:=127.0.0.1}
-: ${ping_cmd:="ping -c 1 -W 2 -q"}
+: ${hosts:=localhost}
+: ${ping_cmd:="ping -c 1 -q"}
 
 configure() {
     echo "graph_title Host availability"
@@ -26,7 +26,7 @@ configure() {
 
 get_data() {
     for host in ${hosts}; do
-        eval $ping_cmd $host 2> /dev/null 1>&2
+        eval $ping_cmd -W $timeout $host 2> /dev/null 1>&2
         echo "${host}.value $?"
     done
 }
