@@ -20,7 +20,7 @@ configure() {
     echo "graph_category network"
     for host in ${hosts}; do
         echo "${host}.label ${host}"
-        echo "${host}.critical 1"
+        echo "${host}.critical 0:0"
     done
 }
 
