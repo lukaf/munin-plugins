@@ -6,3 +6,8 @@ Currently all plugins use FreeBSD class. Change appropriately.
 _ds     - DataSources
 _web    - connectors
 _mem    - memory
+
+... and oracle_. Available options:
+_ss     - session count
+_cs     - open cursor count
+_ts     - tablespace usage

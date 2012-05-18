@@ -1,0 +1,155 @@
+#
+# Sample plugin configuration:
+# [oracle_]
+#   env.db_host 127.0.0.1
+#   env.db_port 1521
+#   env.db_sid  XE
+#   env.db_user username
+#   env.db_pass password
+#   env.ORACLE_HOME /usr/lib/oracle/10.2.0.5/client64
+#   env.LD_LIBRARY_PATH /usr/lib/oracle/10.2.0.5/client64/lib
+#
+
+import cx_Oracle
+import sys
+import os
+
+# Config
+db_host = os.environ.get('db_host', '127.0.0.1')
+db_port = os.environ.get('db_port', 1521)
+db_sid = os.environ.get('db_sid', 'XE')
+db_user = os.environ.get('db_user', 'username')
+db_pass = os.environ.get('db_pass', 'password')
+
+sql_cs = r"SELECT user_name, COUNT(user_name) FROM v$open_cursor GROUP BY user_name"
+
+sql_ss = r"""
+SELECT
+  a.usern,
+  a.counts,
+  b.mlimit
+FROM
+  (SELECT username usern,
+    COUNT(username) counts
+  FROM v$session
+  GROUP BY username
+  ) a,
+  (SELECT value mlimit FROM v$parameter WHERE name = 'sessions'
+  ) b
+WHERE a.usern IS NOT NULL
+"""
+
+sql_ts = r"""
+SELECT
+  a.tablespace_name,
+  b.free,
+  a.total
+FROM
+  (SELECT tablespace_name,
+    SUM(bytes) total
+  FROM dba_data_files
+  GROUP BY tablespace_name
+  ) A,
+  (SELECT tablespace_name,
+    SUM(bytes) free
+  FROM dba_free_space
+  GROUP BY tablespace_name
+  ) B
+WHERE a.tablespace_name=b.tablespace_name
+"""
+
+options = {
+    'cs': sql_cs,
+    'ss': sql_ss,
+    'ts': sql_ts
+}
+
+def failed_config():
+    print "failed.label FAILED"
+    print "failed.vlabel ffffailed!!!1"
+    print "failed.info Fake field indicating we were unable to connect."
+    print "failed.critical 1:"
+
+def failed_data():
+    print "failed.value 0"
+
+dsn = cx_Oracle.makedsn(db_host, db_port, db_sid)
+
+def db_data(op_type):
+    try:
+        conn = cx_Oracle.connect(user=db_user, password=db_pass, dsn=dsn)
+        cur = cx_Oracle.Cursor(conn)
+        cur.execute(options[op_type])
+        data = cur.fetchall()
+        cur.close()
+        conn.close()
+        return data
+    except:
+        return 0
+
+def configure(op_type):
+    data = db_data(op_type)
+    if op_type == 'cs':
+        print "graph_title Cursor count"
+        print "graph_category oracle"
+        print "graph_args -l 0"
+        print "graph_scale no"
+        if data:
+            for element in data:
+                print "%s.label %s" % (element[0], element[0])
+                print "%s.min 0" % element[0]
+        else:
+            failed_config()
+
+    if op_type == 'ss':
+        print "graph_title Session count"
+        print "graph_category oracle"
+        print "graph_args -l 0"
+        print "graph_scale no"
+        if data:
+            for element in data:
+                print "%s.label %s" % (element[0], element[0])
+                print "%s.min 0" % element[0]
+        else:
+            failed_config()
+
+    if op_type == 'ts':
+        print "graph_title Tablespace usage"
+        print "graph_category oracle"
+        print "graph_args -l 0 --upper-limit 100"
+        print "graph_scale no"
+        print "graph_vlabel %"
+        if data:
+            for element in data:
+                print "%s.label %s" % (element[0], element[0])
+                print "%s.min" % element[0]
+                print "%s.warning 1:92" % element[0]
+        else:
+            failed_config()
+
+def get_data(op_type):
+    data = db_data(op_type)
+    if op_type == 'cs' or op_type == 'ss':
+        if data:
+            for element in data:
+                print "%s.value %s" % (element[0], element[1])
+        else:
+            failed_data()
+
+    if op_type == 'ts':
+        if data:
+            for element in data:
+                print "%s.value %.2f" % (element[0], (100 - (100 * float(element[1])) / float(element[2])))
+        else:
+            failed_data()
+
+if __name__ == '__main__':
+    op_type = sys.argv[0].replace('.py','').split('_')[-1]
+    # silently exit if unknown name
+    if op_type not in options.keys():
+        sys.exit(0)
+
+    if len(sys.argv) >= 2 and sys.argv[1] == 'config':
+        configure(op_type)
+    else:
+        get_data(op_type)
