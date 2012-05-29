@@ -21,6 +21,7 @@ configure() {
     for host in ${hosts}; do
         echo "${host}.label ${host}"
         echo "${host}.critical 0:0"
+        echo "${host}.type ABSOLUTE"
     done
 }
 
