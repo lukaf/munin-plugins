@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+#
+# Sample plugin configuration
+# [jboss4_*]
+#   env.jboss_username username
+#   env.jboss_password password
+#   env.jboss_url http://127.0.0.1:8080/status?XML=true
+#   env.url_timeout 5
+#
+
+import urllib2
+import xml.dom.minidom
+import sys
+import os
+import re
+
+connector_attrs = (
+    'maxThreads',
+    'minSpareThreads',
+    'maxSpareThreads',
+    'currentThreadCount',
+    'currentThreadsBusy'
+)
+
+jvm_attrs = (
+    'free',
+    'total',
+    'max'
+)
+
+options = {
+    'mem': ('jvm', jvm_attrs),
+    'web': ('connector', connector_attrs)
+}
+
+# Plugin configuration
+jboss_user = os.environ.get('jboss_user', 'admin')
+jboss_pass = os.environ.get('jboss_pass', 'admin')
+jboss_url = os.environ.get('jboss_url', 'http://127.0.0.1:8080/status?XML=true')
+url_timeout = int(os.environ.get('url_timeout', 5))
+
+# Timeout for urlopen.
+required_version = (2, 6)
+current_version = sys.version_info[:2]
+
+def jboss_data():
+    # prepare base64 encoded string
+    enc_string = str("%s:%s" % (jboss_user, jboss_pass)).encode('base64').strip()
+
+    # Prepare request and add headers
+    request = urllib2.Request(url=jboss_url, headers={"Authorization": "Basic %s" % enc_string})
+    try:
+        if current_version >= required_version:
+            return urllib2.urlopen(request, timeout=url_timeout).read()
+        else:
+            import socket
+            socket.setdefaulttimeout(url_timeout)
+            return urllib2.urlopen(request).read()
+    except:
+        return 0
+
+def failed_config():
+    print "failed.label FAILED %s" % sys.argv[0]
+    print "failed.vlabel ffffailed!!!1"
+    print "failed.info Fake field indicating we were unable to connect."
+    print "failed.critical 1:"
+
+def failed_data():
+    print "failed.value 0"
+
+def get_data(op_type):
+    data = jboss_data()
+    if data:
+        document = xml.dom.minidom.parseString(data).documentElement
+        if op_type[0] == 'connector':
+            print "multigraph jboss4_web"
+            tmp = {}
+            for sub_document in document.childNodes:
+                if sub_document.nodeName == op_type[0] and sub_document.getAttribute('name') != '':
+                    node = sub_document.firstChild
+                    for attr in op_type[1]:
+                        try:
+                            if attr in tmp:
+                                tmp[attr] += int(node.getAttribute(attr))
+                            else:
+                                tmp[attr] = int(node.getAttribute(attr))
+                        except:
+                            pass
+            # multigraph accumulated values
+            for attr in op_type[1]:
+                if attr in tmp:
+                    print "%s.value %s" % (attr, tmp[attr])
+
+            for sub_document in document.childNodes:
+                if sub_document.nodeName == op_type[0] and sub_document.getAttribute('name') != '':
+                    node = sub_document.firstChild
+                    print "multigraph jboss4_web.%s" % re.sub(r"[^a-zA-Z0-9_]", '_', sub_document.getAttribute('name'))
+                    for attr in op_type[1]:
+                        try:
+                            print "%s.value %s" % (attr, int(node.getAttribute(attr)))
+                        except:
+                            pass
+
+        if op_type[0] == 'jvm':
+            for sub_document in document.childNodes:
+                if sub_document.nodeName == op_type[0]:
+                    node = sub_document.firstChild
+                    for attr in op_type[1]:
+                        try:
+                            print "%s.value %s" % (attr, int(node.getAttribute(attr)))
+                        except:
+                            pass
+    else:
+        failed_data()
+
+def configure(op_type):
+    data = jboss_data()
+    if data:
+        document = xml.dom.minidom.parseString(data).documentElement
+        if op_type[0] == 'connector':
+            print "multigraph jboss4_web"
+            print "graph_category jboss"
+            print "graph_args -l 0"
+            print "graph_scale no"
+            print "graph_title JBoss4 web root graph. Sum of all."
+            for attr in op_type[1]:
+                print "%s.label %s" % (attr, attr)
+                print "%s.info Thread count" % attr
+                print "%s.min 0" % attr
+                print "%s.type GAUGE" % attr
+
+            for sub_document in document.childNodes:
+                if sub_document.nodeName == 'connector' and sub_document.getAttribute('name') != '':
+                    print "multigraph jboss4_web.%s" % re.sub(r"[^a-zA-Z0-9_]", '_', sub_document.getAttribute('name'))
+                    print "graph_category jboss"
+                    print "graph_args -l 0"
+                    print "graph_scale no"
+                    print "graph_title %s" % re.sub(r"[^a-zA-Z0-9_]", '_', sub_document.getAttribute('name'))
+                    for attr in op_type[1]:
+                        print "%s.label %s" % (attr, attr)
+                        print "%s.info Thread count" % attr
+                        print "%s.min 0" % attr
+                        print "%s.type GAUGE" % attr
+
+        if op_type[0] == 'jvm':
+            print "graph_category jboss"
+            print "graph_args --base 1024 -l 0"
+            print "graph_scale yes"
+            print "graph_title JVM memory usage"
+            for attr in op_type[1]:
+                print "%s.label %s" % (attr, attr)
+                print "%s.info %s memory status" % (attr, attr)
+                print "%s.min 0" % attr
+                print "%s.type GAUGE" % attr
+
+    else:
+        failed_config()
+
+if __name__ == "__main__":
+    op_type = sys.argv[0].replace('.py', '').split('_')[-1]
+
+    # silently exit if unknown option
+    if op_type not in options:
+        sys.exit(0)
+
+    if len(sys.argv) >= 2 and sys.argv[1] == 'config':
+        configure(options[op_type])
+    else:
+        get_data(options[op_type])

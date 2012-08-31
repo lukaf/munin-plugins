@@ -1,26 +1,29 @@
+#!/usr/bin/env python
+# User configurable stuff
+# Change the second value of get method or define environment variables:
+# [jboss7_*]
+#   env.jboss_username a
+#   env.jboss_password b
+#   env.jboss_realm ManagementRealm
+#   env.jboss_manager "http://127.0.0.1:9990/management"
+#   env.datasource xa-data-source
+#   env.url_timeout 5
+#
+
 import urllib2 as ul
 import sys
 import os
 import re
 import json
 
-# User configurable stuff
-# Change the second value of get method or define environment variables:
-# [jboss_*]
-#   env.jboss_username a
-#   env.jboss_password b
-#   env.jboss_realm ManagementRealm
-#   env.jboss_manager "http://127.0.0.1:9990/management"
-#   env.datasource xa-data-source
-#
-
 # Auth stuff
 user = os.environ.get('jboss_username', 'a')
 password = os.environ.get('jboss_password', 'b')
 realm = os.environ.get('jboss_realm', 'ManagementRealm')
 
-# Manager location
+# Manager location & timeout
 manager = os.environ.get('jboss_manager', 'http://127.0.0.1:9990/management')
+url_timeout = int(os.environ.get('url_timeout', 5))
 
 # Datasource
 datasource = os.environ.get('datasource', 'xa-data-source')
@@ -29,6 +32,10 @@ datasource = os.environ.get('datasource', 'xa-data-source')
 null = undefined = None
 true = True
 false = False
+
+# Timeout for urlopen
+required_version = (2, 6)
+current_version = sys.version_info[:2]
 
 options = {
     "ds": "/subsystem/datasources?include-runtime=true&recursive=true",
@@ -64,16 +71,21 @@ def build_opener(uri, user, password, realm):
 def manager_data(url):
     ul.install_opener(build_opener(url, user, password, realm))
     try:
-        data = json.loads(ul.urlopen(url, timeout=10).read())
+        if current_version >= required_version:
+            data = json.loads(ul.urlopen(url, timeout=url_timeout).read())
+        else:
+            import socket
+            socket.setdefaulttimeout(url_timeout)
+            data = json.loads(ul.urlopen(url).read())
     except:
         data = 0
     return data
 
 def string_fix(s):
-    return s.replace('-', '_')
+    return re.sub(r"[^a-zA-Z0-9_]", "_", s)
 
 def failed_config():
-    print "failed.label FAILED"
+    print "failed.label FAILED %s" % sys.argv[0]
     print "failed.vlabel ffffailed!!!1"
     print "failed.info Fake field indicating we were unable to connect."
     print "failed.critical 1:"
@@ -84,11 +96,11 @@ def failed_fetch():
 def configure(op_type):
     data = manager_data(manager + options[op_type])
     if op_type == "ds":
-        print "multigraph jboss_ds"
+        print "multigraph jboss7_ds"
         print "graph_category jboss"
         print "graph_args --base 1000 -l 0"
         print "graph_scale no"
-        print "graph_title JBoss datasource root graph. Sum of all."
+        print "graph_title JBoss7 datasource root graph. Sum of all."
         if data:
             for stat in ds_stats:
                 print "%s.label %s" % (stat, stat)
@@ -97,7 +109,7 @@ def configure(op_type):
                 print "%s.type DERIVE" % (stat)
             print
             for ds in data[datasource]:
-                print "multigraph jboss_ds.%s" % (string_fix(ds))
+                print "multigraph jboss7_ds.%s" % (string_fix(ds))
                 print "graph_title %s" % string_fix(ds)
                 print "graph_args --base 1000 -l 0"
                 print "graph_scale no"
@@ -112,11 +124,11 @@ def configure(op_type):
             failed_config()
 
     if op_type == "web":
-        print "multigraph jboss_web"
+        print "multigraph jboss7_web"
         print "graph_category jboss"
         print "graph_args --base 1000 -l 0"
         print "graph_scale no"
-        print "graph_title JBoss web root graph. Sum of all."
+        print "graph_title JBoss7 web root graph. Sum of all."
         if data:
             for stat in web_stats:
                 print "%s.label %s" % (stat, stat)
@@ -125,7 +137,7 @@ def configure(op_type):
                 print "%s.type DERIVE" % stat
             print
             for wc in data['connector']:
-                print "multigraph jboss_web.%s" % wc
+                print "multigraph jboss7_web.%s" % wc
                 print "graph_title %s" % wc
                 print "graph_args --base 1000 -l 0"
                 print "graph_scale no"
@@ -140,11 +152,11 @@ def configure(op_type):
             failed_config()
 
     if op_type == "mem":
-        print "multigraph jboss_mem"
+        print "multigraph jboss7_mem"
         print "graph_category jboss"
         print "graph_args --base 1024 -l 0"
         print "graph_vlabel memory"
-        print "graph_title JBoss memory root graph. Sum of all."
+        print "graph_title JBoss7 memory root graph. Sum of all."
         if data:
             for stat in memory_stats:
                 print "%s.label %s" % (stat, stat)
@@ -153,7 +165,7 @@ def configure(op_type):
             print
             # element in data with 'memory' word match
             for el in [x for x in data if re.search('memory', x)]:
-                print "multigraph jboss_mem.%s" % el
+                print "multigraph jboss7_mem.%s" % el
                 print "graph_title %s" % el
                 print "graph_args --base 1024 -l 0"
                 print "graph_vlabel memory"
@@ -169,14 +181,14 @@ def configure(op_type):
 def get_data(op_type):
     data = manager_data(manager + options[op_type])
     if op_type == "ds":
-        print "multigraph jboss_ds"
+        print "multigraph jboss7_ds"
         if data:
             for stat in ds_stats:
                 print "%s.value %s" % (stat, sum([int(data[datasource][ds]['statistics']['pool'][stat]) for ds in data[datasource]]))
             print
 
             for ds in data[datasource]:
-                print "multigraph jboss_ds.%s" % string_fix(ds)
+                print "multigraph jboss7_ds.%s" % string_fix(ds)
                 for stat in ds_stats:
                     print "%s.value %s" % (stat, data[datasource][ds]['statistics']['pool'][stat])
                 print
@@ -184,14 +196,14 @@ def get_data(op_type):
             failed_fetch()
 
     if op_type == "web":
-        print "multigraph jboss_web"
+        print "multigraph jboss7_web"
         if data:
             for stat in web_stats:
                 print "%s.value %s" % (stat, sum([int(data['connector'][wc][stat]) for wc in data['connector']]))
             print
 
             for wc in data['connector']:
-                print "multigraph jboss_web.%s" % wc
+                print "multigraph jboss7_web.%s" % wc
                 for stat in web_stats:
                     print "%s.value %s" % (stat, data['connector'][wc][stat])
                 print
@@ -199,14 +211,14 @@ def get_data(op_type):
             failed_fetch()
 
     if op_type == "mem":
-        print "multigraph jboss_mem"
+        print "multigraph jboss7_mem"
         if data:
             for stat in memory_stats:
                 print "%s.value %s" % (stat, sum([data[key][stat] for key in [el for el in data if re.search('memory', el)]]))
             print
 
             for el in [x for x in data if re.search('memory', x)]:
-                print "multigraph jboss_mem.%s" % el
+                print "multigraph jboss7_mem.%s" % el
                 for k, v in data[el].items():
                     print "%s.value %s" % (k, v)
                 print
@@ -214,7 +226,12 @@ def get_data(op_type):
             failed_fetch()
 
 if __name__ == "__main__":
-    op_type = sys.argv[0].rstrip('.py').split('_')[-1]
+    op_type = sys.argv[0].replace('.py', '').split('_')[-1]
+
+    # silently exit if unknown option
+    if op_type not in options:
+        sys.exit(0)
+
     if len(sys.argv) >= 2 and sys.argv[1] == "config":
         configure(op_type)
     else:

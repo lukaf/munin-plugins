@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # Sample plugin configuration:
 # [oracle_]
@@ -21,7 +22,7 @@ db_sid = os.environ.get('db_sid', 'XE')
 db_user = os.environ.get('db_user', 'username')
 db_pass = os.environ.get('db_pass', 'password')
 
-sql_cs = r"SELECT user_name, COUNT(user_name) FROM v$open_cursor GROUP BY user_name"
+sql_ccs = r"SELECT user_name, COUNT(user_name) FROM v$open_cursor GROUP BY user_name"
 
 sql_ss = r"""
 SELECT
@@ -58,10 +59,24 @@ FROM
 WHERE a.tablespace_name=b.tablespace_name
 """
 
+sql_cs = r"""
+SELECT username,
+  SUM(value)
+FROM v$sesstat stat,
+  v$statname sname,
+  v$session sessn
+WHERE stat.statistic# = sname.statistic#
+AND sessn.sid         = stat.sid
+AND sname.name        = 'opened cursors current'
+AND sessn.username   IS NOT NULL
+GROUP BY username
+"""
+
 options = {
-    'cs': sql_cs,
+    'ccs': sql_ccs,
     'ss': sql_ss,
-    'ts': sql_ts
+    'ts': sql_ts,
+    'cs': sql_cs
 }
 
 def failed_config():
@@ -89,8 +104,8 @@ def db_data(op_type):
 
 def configure(op_type):
     data = db_data(op_type)
-    if op_type == 'cs':
-        print "graph_title Cursor count"
+    if op_type == 'ccs':
+        print "graph_title Cached cursor count"
         print "graph_category oracle"
         print "graph_args -l 0"
         print "graph_scale no"
@@ -127,9 +142,21 @@ def configure(op_type):
         else:
             failed_config()
 
+    if op_type == 'cs':
+        print "graph_title Open cursor count"
+        print "graph_category oracle"
+        print "grap_args -l 0"
+        print "graph_scale no"
+        if data:
+            for element in data:
+                print "%s.label %s" % (element[0], element[0])
+                print "%s.min 0" % element[0]
+        else:
+            failed_config()
+
 def get_data(op_type):
     data = db_data(op_type)
-    if op_type == 'cs' or op_type == 'ss':
+    if op_type == 'ccs' or op_type == 'ss' or op_type == 'cs':
         if data:
             for element in data:
                 print "%s.value %s" % (element[0], element[1])
