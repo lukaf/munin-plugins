@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import subprocess as sub
 import gevent
 import sys
@@ -12,8 +13,7 @@ fs = lambda x: x.replace('.', '_')
 
 def pinger(h):
     p = sub.Popen(ping_cmd.split() + [h], stdout=sub.PIPE, stderr=sub.STDOUT)
-    p.wait()
-    return (h, p.returncode)
+    return (h, p)
 
 
 def configure():
@@ -30,8 +30,9 @@ def get_data():
     workers = [gevent.spawn(pinger, h) for h in hosts]
     gevent.joinall(workers)
     for worker in workers:
-        print "%s.value %d" % (worker.value[0].replace('.', '_'),
-            worker.value[1])
+        # wait for Popen
+        worker.value[1].wait()
+        print "%s.value %d" % (fs(worker.value[0]), worker.value[1].returncode)
 
 
 if __name__ == '__main__':
