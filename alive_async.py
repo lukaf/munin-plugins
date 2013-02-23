@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 import subprocess as sub
-import gevent
+import Queue
 import sys
 import os
 
 timeout = int(os.environ.get('timeout', 5))
 hosts = os.environ.get('hosts', '127.0.0.1').split()
 ping_cmd = os.environ.get('ping_cmd', 'ping -c1 -W2')
+q = Queue.Queue()
 
-fs = lambda x: x.replace('.', '_')
+
+def fs(x):
+    return x.replace('.', '_')
 
 
 def pinger(h):
@@ -27,12 +30,28 @@ def configure():
 
 
 def get_data():
-    workers = [gevent.spawn(pinger, h) for h in hosts]
-    gevent.joinall(workers)
-    for worker in workers:
-        # wait for Popen
-        worker.value[1].wait()
-        print "%s.value %d" % (fs(worker.value[0]), worker.value[1].returncode)
+    output = []
+    for h in hosts:
+        q.put(pinger(h))
+
+    while True:
+        try:
+            #p = q.get(block=False)
+            host, p = q.get(block=False)
+            if p.poll() is not None:
+                output.append("%s.value %d" % (fs(host), p.returncode))
+            else:
+                q.put((host, p))
+            #if p[1].poll() is not None:
+            #    output.append(
+            #            "%s.value %d" % (fs(p[0]), p[1].returncode)
+            #            )
+            #else:
+            #    q.put(p)
+        except Queue.Empty:
+            break
+
+    print '\n'.join(output)
 
 
 if __name__ == '__main__':
