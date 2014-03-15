@@ -17,3 +17,6 @@ _cs     - open cursor count
 _ts     - tablespace usage
 _ccs    - cached cursors
 
+
+NB:
+- jboss plugin only supports standalone. For motre info check https://github.com/lukaf/munin-plugins/issues/1
