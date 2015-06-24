@@ -165,7 +165,7 @@ def configure(op_type):
             print
             # element in data with 'memory' word match
             for el in [x for x in data if re.search('memory', x)]:
-                print "multigraph jboss7_mem.%s" % el
+                print "multigraph jboss7_mem.%s" % el.replace('-', '_')
                 print "graph_title %s" % el
                 print "graph_args --base 1024 -l 0"
                 print "graph_vlabel memory"
@@ -218,7 +218,7 @@ def get_data(op_type):
             print
 
             for el in [x for x in data if re.search('memory', x)]:
-                print "multigraph jboss7_mem.%s" % el
+                print "multigraph jboss7_mem.%s" % el.replace('-', '_')
                 for k, v in data[el].items():
                     print "%s.value %s" % (k, v)
                 print
